@@ -10,6 +10,9 @@ server = function(input, output, session) {
   street_lights[street_lights$Pole_Type %in% c(""," "),]$Pole_Type <- "Unknown"
   street_lights[street_lights$Service %in% c(""," "),]$Service <- "Unknown"
   street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
+  street_lights$color <- if_else(is.na(street_lights$Inspect_Date2), "Inspect ASAP", 
+                                 if_else(year(street_lights$Inspect_Date2) > 2007, "Recently Inspected", "May Need Inspection"))
+  pal1 = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)
   
   # Load the public facilities data
   facilities.points <- read.csv("Public_Facilities.csv")
@@ -20,8 +23,19 @@ server = function(input, output, session) {
                                    "Type: ",facilities.spatial$POPL_TYPE,"<br>",
                                    "Phone: ",facilities.spatial$POPL_PHONE,sep ="")
   
+  # Load the city counsil districts data
+  districts = readOGR(dsn="City_Council_Districts", 
+                      layer = "City_Council_Districts", 
+                      stringsAsFactors = FALSE)
+  districts$popup = paste("<b>", districts@data$Council_Me, "</b><br>",
+                          "Email: <a href=\"mailto:", districts@data$Email, "\">", districts@data$Email, "</a><br>",
+                          "District #: ", districts@data$Dist,sep ="")
+  pal2 = colorFactor(palette = 'Set1', domain = districts@data$Council_Me)
+  
   data <- eventReactive(input$dates,{
-    return(street_lights[street_lights$Inspect_Date2 >= input$dates[1]& street_lights$Inspect_Date2 <= input$dates[2],])
+    return(street_lights[(street_lights$Inspect_Date2 >= input$dates[1] & 
+                           street_lights$Inspect_Date2 <= input$dates[2]) |
+                           is.na(street_lights$Inspect_Date2),])
     })
   
   output$plot <- renderPlot({
@@ -37,10 +51,20 @@ server = function(input, output, session) {
   })
   
   output$map <- renderLeaflet({
-    leaflet(data = data()) %>%
+    leaflet() %>%
       addTiles() %>%
-      addCircleMarkers(stroke = 0, fillOpacity = 1, radius = 1) %>%
-      addMarkers(data = facilities.spatial, popup = ~popup)
+      addPolygons(data = districts, 
+                  color = ~pal2(Council_Me), popup = ~popup) %>%
+      addCircleMarkers(data = data(), lng =  ~Lon, lat = ~Lat, 
+                       color = ~pal1(color),
+                       stroke = 0, fillOpacity = 1, radius = 1) %>%
+      addMarkers(data = facilities.spatial, popup = ~popup) %>%
+      addLegend(values = data()$color, position = "topright", 
+                title = "Light Inspection Status",
+                pal = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)) %>%
+      addLegend(values = districts@data$Council_Me, position = "bottomleft",
+                title = "City Counsil District",
+                pal = colorFactor(palette = 'Set1', domain = districts@data$Council_Me))
     })
 }
 
@@ -60,14 +84,24 @@ ui = navbarPage(
            ),
     tabPanel("Gerard",
             verbatimTextOutput("summary")
-    ),
+            ),
     tabPanel("Mike",
             DT::dataTableOutput("table")
-    ),
-    tabPanel("Tony",
-            dateRangeInput(inputId = "dates", label = "Date range", startview = "year",start="2010-01-01"),
-            leafletOutput(outputId = "map")
-    )
+            ),
+    tabPanel("City Lights Map",
+             sidebarLayout(
+               sidebarPanel(
+                 dateRangeInput(inputId = "dates", 
+                                label = "Inspection date range", 
+                                startview = "year",
+                                start="1970-01-01")
+                 ),
+               mainPanel(
+                 "City Lights by Inspection Status", 
+                 leafletOutput(outputId = "map")
+                 )
+               )
+             )
 )
 
 
