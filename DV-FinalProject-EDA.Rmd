@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r packages, message=FALSE, warning=FALSE, error=FALSE}
 # this chunk will safely install and load some packages this code requires
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load( skimr, DataExplorer, tidyverse, lubridate, ggmap, rgdal )
+pacman::p_load( skimr, DataExplorer, tidyverse, lubridate, ggmap, rgdal, leaflet )
 
 theme_set(theme_light())
 ```
@@ -153,8 +153,11 @@ ggplot() +
 #Street Light data
 
 ```{r}
-lights = read.csv('Street_Lights.csv', stringsAsFactors = FALSE)
-glimpse(lights)
+street_lights = read.csv('Street_Lights.csv', stringsAsFactors = FALSE)
+street_lights[street_lights$Pole_Type %in% c(""," "),]$Pole_Type <- "Unknown"
+street_lights[street_lights$Service %in% c(""," "),]$Service <- "Unknown"
+street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
+glimpse(street_lights)
 ```
 
 Let's plot the lights on a map of districts.
@@ -165,8 +168,48 @@ ggplot() +
                aes(x = long, y = lat, fill = Council_Me, group = group), 
                color = "black", 
                alpha = 0.5) + 
-  geom_point(data = lights,
-             aes(x = Lon, y = Lat, color = Ownership, alpha = 0.5)) +
-  coord_fixed(1.3)
+  geom_point(data = street_lights %>% 
+               filter(!is.na(Inspect_Date2)) %>%
+               filter(year(Inspect_Date2) > 1971),
+             aes(x = Lon, y = Lat, color = year(Inspect_Date2), alpha = 0.5)) +
+  scale_color_gradient2(low = "red", high = "green", midpoint = 2008) +
+  coord_fixed(1.3) + 
+  theme_void()
+```
+
+# Public Facilities data
+
+Let's read in the public facilites data
+
+```{r}
+facilities.points <- read.csv("Public_Facilities.csv")
+facilities.spatial <- SpatialPointsDataFrame(coords = facilities.points[,c("Lon","Lat")], 
+                                             data = facilities.points,
+                                             proj4string = CRS("+proj=longlat +datum=WGS84"))
+```
+
+Now, let's plot this using leaflet
+
+```{r}
+facilities.spatial$popup = paste("<b>",facilities.spatial$POPL_NAME,"</b><br>",
+                                  "Type: ",facilities.spatial$POPL_TYPE,"<br>",
+                                  "Phone: ",facilities.spatial$POPL_PHONE,sep ="")
+
+districts$popup = paste("<b>", districts@data$Council_Me, "</b><br>",
+                      "Email: <a href=\"mailto:", districts@data$Email, "\">", districts@data$Email, "</a><br>",
+                      "District #: ", districts@data$Dist,sep ="")
+
+pal = colorNumeric(palette = 'RdYlGn', 
+                   domain = year(street_lights$Inspect_Date2), na.color = "red")
+pal2 = colorFactor(palette = 'Set1', domain = districts2$Council_Me)
+
+leaflet()  %>%
+  addTiles()  %>%
+  addPolygons(data = districts, 
+              color = ~pal2(Council_Me), popup = ~popup) %>%
+  addCircleMarkers(data = street_lights, 
+                   color = ~pal(year(street_lights$Inspect_Date2)), 
+                   stroke = 0, fillOpacity = 1, radius = 1) %>%
+  addMarkers(data = facilities.spatial, popup = ~popup)
 ```
 
