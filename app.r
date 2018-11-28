@@ -7,11 +7,12 @@ library(rgdal)
 server = function(input, output, session) {
   # Load the street lights data
   street_lights <- read.csv("Street_Lights.csv", stringsAsFactors = F)
-  street_lights[street_lights$Pole_Type %in% c(""," "),]$Pole_Type <- "Unknown"
-  street_lights[street_lights$Service %in% c(""," "),]$Service <- "Unknown"
   street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
   street_lights$color <- if_else(is.na(street_lights$Inspect_Date2), "Inspect ASAP", 
-                                 if_else(year(street_lights$Inspect_Date2) > 2007, "Recently Inspected", "May Need Inspection"))
+                                 if_else(year(street_lights$Inspect_Date2) > 2007, 
+                                         "Recently Inspected", 
+                                         if_else(year(street_lights$Inspect_Date2) > 2000, 
+                                                 "May Need Inspection", "Inspect ASAP")))
   pal1 = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)
   
   # Load the public facilities data

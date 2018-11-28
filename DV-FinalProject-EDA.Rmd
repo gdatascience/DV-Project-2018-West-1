@@ -157,8 +157,11 @@ street_lights = read.csv('Street_Lights.csv', stringsAsFactors = FALSE)
 street_lights[street_lights$Pole_Type %in% c(""," "),]$Pole_Type <- "Unknown"
 street_lights[street_lights$Service %in% c(""," "),]$Service <- "Unknown"
 street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
-street_lights$color <- if_else(is.na(street_lights$Inspect_Date2), "red",
-                               if_else(year(street_lights$Inspect_Date2) > 2007, "green", "yellow"))
+  street_lights$color <- if_else(is.na(street_lights$Inspect_Date2), "Inspect ASAP", 
+                                 if_else(year(street_lights$Inspect_Date2) > 2007, 
+                                         "Recently Inspected", 
+                                         if_else(year(street_lights$Inspect_Date2) > 2000, 
+                                                 "May Need Inspection", "Inspect ASAP")))
 glimpse(street_lights)
 ```
 
