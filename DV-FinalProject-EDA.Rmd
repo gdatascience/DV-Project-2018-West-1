@@ -165,11 +165,38 @@ street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
 glimpse(street_lights)
 ```
 
-Let's plot the inspection dates.
+Let's take a look at the bulb type variable.
 
 ```{r}
 street_lights %>%
-  count(color)
+  count(Bulb_Type, sort = T)
+```
+
+First, let's correct the 243 blank values and change them to "Unknown".  We should end up with (1498 + 243) 1741 values of "Unknown" after this transformation.
+
+```{r}
+street_lights[street_lights$Bulb_Type %in% c(""," "),]$Bulb_Type <- "Unknown"
+
+street_lights %>%
+  count(Bulb_Type)
+```
+
+Next, let's tackle the issue of the various spellings and names of "High Pressure Sodium (HPS)" bulbs.
+
+```{r}
+street_lights[!street_lights$Bulb_Type %in% c("Blue - Mercury Vapor",
+                                              "Incandescent",
+                                              "LED", "Unknown"),]$Bulb_Type <- "High Pressure Sodium (HPS)"
+
+street_lights %>%
+  count(Bulb_Type)
+```
+
+That was pretty useless because, now, most of the records are HPS bulbs.  Let's examine the Service variable.
+
+```{r}
+street_lights %>%
+  count(Service)
 ```
 
 
