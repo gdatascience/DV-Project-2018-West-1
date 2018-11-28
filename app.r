@@ -3,6 +3,8 @@ library(ggplot2)
 library(markdown)
 library(leaflet)
 library(rgdal)
+library(lubridate)
+library(tidyverse)
 
 server = function(input, output, session) {
   # Load the street lights data

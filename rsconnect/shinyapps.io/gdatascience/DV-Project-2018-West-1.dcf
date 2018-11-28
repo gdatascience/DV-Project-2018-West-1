@@ -5,9 +5,9 @@ account: gdatascience
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 591561
-bundleId: 1724718
+bundleId: 1724858
 url: https://gdatascience.shinyapps.io/DV-Project-2018-West-1/
-when: 1543364223.55177
+when: 1543369048.27999
 asMultiple: FALSE
 asStatic: FALSE
 ignoredFiles: 311_Contact_Management_Cases.csv|311_Phone_Call_Log_Mod.csv|Code_Enforcement_Cases.csv|DV-FinalProject-EDA.Rmd|Parks_Locations_and_Features.csv|README.md|report.html|Abandoned_Property_Parcels/Abandoned_Property_Parcels.cpg|Abandoned_Property_Parcels/Abandoned_Property_Parcels.dbf|Abandoned_Property_Parcels/Abandoned_Property_Parcels.prj|Abandoned_Property_Parcels/Abandoned_Property_Parcels.shp|Abandoned_Property_Parcels/Abandoned_Property_Parcels.shx|School_Boundaries/School_Boundaries.cpg|School_Boundaries/School_Boundaries.dbf|School_Boundaries/School_Boundaries.prj|School_Boundaries/School_Boundaries.shp|School_Boundaries/School_Boundaries.shx|www/CityOfSouthBend-Logo.jpg|2010_CensusData|report_files
