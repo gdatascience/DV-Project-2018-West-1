@@ -5,6 +5,27 @@ library(leaflet)
 library(rgdal)
 library(lubridate)
 library(tidyverse)
+library(ggmap)
+library(raster)
+library(DT)
+
+## DAN DATA LOAD AND MANIPULATE
+
+# load abandoned parcel data
+ab_property = readOGR(dsn="Abandoned_Property_Parcels", 
+                      layer = "Abandoned_Property_Parcels", 
+                      stringsAsFactors = FALSE)
+
+# import school boundary data
+ab_school_boundaries <- readOGR(dsn="School_Boundaries", 
+                                layer = "School_Boundaries", stringsAsFactors = FALSE)
+
+# convert all NA values for Outcome to 'Not Fixed'
+ab_property@data$Outcome_St[is.na(ab_property@data$Outcome_St)] <- "Not Fixed"
+
+# generate the basemap for South Bend abandoned properties
+ab.base.map <- ggmap::get_stamenmap(bbox = c(left = -86.36, bottom = 41.59, 
+                                             right = -86.14,top = 41.76), zoom = 12)
 
 server = function(input, output, session) {
   # Load the street lights data
@@ -41,6 +62,54 @@ server = function(input, output, session) {
                            is.na(street_lights$Inspect_Date2),])
     })
   
+  # DAN SERVER DATA SECTION
+  
+  # create output for abandoned properties map
+  output$ab_map <- renderLeaflet({
+    
+    # create color palette based on property outcome state
+    ab_pal <- colorFactor(palette = 'Set1', domain = ab_property$Outcome_St)
+    
+    # create property popup
+    ab_property$ab_popup <- paste("<b>",ab_property$Address_Nu, " ", " ", ab_property$Direction, " ", 
+                               ab_property$Street_Nam, " ", ab_property$Suffix, "</b><br>",
+                               "State: ",ab_property$Outcome_St,"<br>",
+                               "City Code: ",ab_property$Code_Enfor,sep ="")
+    
+    # create school popup
+    ab_school_boundaries$sch_popup <- paste("<b>", ab_school_boundaries$School)
+    
+    # now dynamically build the filtered list based on checkbox selection
+    ab_displayList <- ab_property[ab_property@data$Outcome_St %in% c(input$state),] 
+    
+    # build map  
+    ab_city_map <- leaflet()  %>%
+      addTiles() %>%
+      addPolygons(data = ab_displayList, color = ~ab_pal(Outcome_St), 
+                  fillOpacity = 1, popup = ~ab_popup) %>%
+      addLegend(data = ab_displayList, 
+                pal = ab_pal, opacity = 1, 
+                values = ~Outcome_St, position = "bottomleft", title = "Property Status")
+    
+    # If statement to determine if the display map should have school boundaries or not
+    if(input$schools == TRUE){
+      ab_city_map %>%
+        addPolygons(data = ab_school_boundaries, color = "black", popup = ~sch_popup)
+    }
+    else{
+      ab_city_map
+    }
+  })
+  
+  # render table
+  output$ab_table <- renderDataTable(
+    
+    # now dynamically build the table based on selected checkboxes
+    datatable(ab_property[ab_property@data$Outcome_St %in% c(input$state),]@data)
+  )
+  
+  ## END DAN SERVER SECTION
+  
   output$plot <- renderPlot({
     plot(cars, type=input$plotType)
   })
@@ -73,15 +142,31 @@ server = function(input, output, session) {
 
 ui = navbarPage(
   title = "Mayor Pete Dashboard",
-  tabPanel("Dan",
+  tabPanel("Abandoned Buildings",
            sidebarLayout(
              sidebarPanel(
-               radioButtons("plotType", "Plot type",
-                            c("Scatter"="p", "Line"="l")
-                            )
+               # first set of checkboxes for Property Status
+               checkboxGroupInput("state", "Current Property Status:",
+                                  c("Demolished" = "Demolished",
+                                    "Deconstructed" = "Deconstructed",
+                                    "Repaired" = "Repaired",
+                                    "Repaired & Occupied" = "Repaired & Occupied",
+                                    "Occupied & Not Repaired" = "Occupied & Not Repaired",
+                                    "Not Fixed" = "Not Fixed"),
+                                  selected = c("Demolished", "Deconstructed", "Repaired",
+                                               "Repaired & Occupied", "Occupied & Not Repaired", 
+                                               "Not Fixed")),
+               
+               # Individual checkbox for inclusion of school boundaries
+               checkboxInput("schools", "Include School Boundaries?")
                ),
+             
              mainPanel(
-               plotOutput("plot")
+               # display two tabbed output with "Map" and "Table"
+               tabsetPanel(
+                 tabPanel("Map", leafletOutput("ab_map",height = 500)),
+                 tabPanel("Table", dataTableOutput("ab_table"))
+               )
                )
              )
            ),
