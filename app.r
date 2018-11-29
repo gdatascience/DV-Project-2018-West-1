@@ -26,7 +26,7 @@ server = function(input, output, session) {
                                    "Type: ",facilities.spatial$POPL_TYPE,"<br>",
                                    "Phone: ",facilities.spatial$POPL_PHONE,sep ="")
   
-  # Load the city counsil districts data
+  # Load the city council districts data
   districts = readOGR(dsn="City_Council_Districts", 
                       layer = "City_Council_Districts", 
                       stringsAsFactors = FALSE)
@@ -66,7 +66,7 @@ server = function(input, output, session) {
                 title = "Light Inspection Status",
                 pal = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)) %>%
       addLegend(values = districts@data$Council_Me, position = "bottomleft",
-                title = "City Counsil District",
+                title = "City Council Representative",
                 pal = colorFactor(palette = 'Set1', domain = districts@data$Council_Me))
     })
 }
