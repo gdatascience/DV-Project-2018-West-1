@@ -8,6 +8,7 @@ library(tidyverse)
 library(ggmap)
 library(raster)
 library(DT)
+library(geosphere)
 
 ######################################
 # MIKE ADDED THIS TO ENABLE FILE READS
@@ -39,6 +40,8 @@ ab.base.map <- ggmap::get_stamenmap(bbox = c(left = -86.36, bottom = 41.59,
 ########################################
 # GERARD DATA LOAD AND MANIPULATE
 ########################################
+
+register_google(key = "")
 
 # Import public facilities data
 gm_facilities <- read.csv("Public_Facilities.csv", stringsAsFactors = F) %>%
