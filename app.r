@@ -9,7 +9,9 @@ library(ggmap)
 library(raster)
 library(DT)
 
+########################################
 ## DAN DATA LOAD AND MANIPULATE
+########################################
 
 # load abandoned parcel data
 ab_property = readOGR(dsn="Abandoned_Property_Parcels", 
@@ -27,6 +29,59 @@ ab_property@data$Outcome_St[is.na(ab_property@data$Outcome_St)] <- "Not Fixed"
 ab.base.map <- ggmap::get_stamenmap(bbox = c(left = -86.36, bottom = 41.59, 
                                              right = -86.14,top = 41.76), zoom = 12)
 
+########################################
+# GERARD DATA LOAD AND MANIPULATE
+########################################
+
+# Import public facilities data
+gm_facilities <- read.csv("Public_Facilities.csv", stringsAsFactors = F) %>%
+  dplyr::select(POPL_NAME, POPL_TYPE, Lat, Lon) %>%
+  rename(Name = POPL_NAME, Type = POPL_TYPE) %>%
+  na.omit() %>%
+  mutate(Dataset = "Facilities")
+
+# Import parks data
+gm_parks <- read.csv("Parks_Locations_and_Features.csv", stringsAsFactors = F) %>%
+  dplyr::select(Park_Name, Park_Type, Lat, Lon) %>%
+  rename(Name = Park_Name, Type = Park_Type) %>%
+  na.omit() %>%
+  mutate(Dataset = "Parks")
+
+# Import school data.
+gm_schools_ogr <- readOGR(dsn="School_Boundaries", layer = "School_Boundaries")
+gm_schools_coordinates <- coordinates(gm_schools_ogr)
+
+gm_schools <- data.frame(
+  Name = as.character(gm_schools_ogr@data$School),
+  Type = as.character(gm_schools_ogr@data$SchoolType),
+  Lat = gm_schools_coordinates[,2],
+  Lon = gm_schools_coordinates[,1],
+  Dataset = "Schools"
+)
+
+# Combine datasets
+gm_combined_data <- rbind(gm_facilities, gm_parks, gm_schools) %>%
+  mutate(Dataset = as.factor(Dataset))
+
+gm_schools_parks <- gm_combined_data %>%
+  filter(Dataset != "Facilities")
+
+# Get nearest facility
+gm_find_nearest_facility <- function(longitude, latitude, facility_type) {
+  desired_facilities <- gm_combined_data %>%
+    filter(Dataset == "Facilities" & Type == facility_type)
+
+  distances <- apply(desired_facilities, 1, FUN = function(row) {
+    distm(c(as.numeric(row[4]), as.numeric(row[3])),
+          c(longitude, latitude),
+          fun = distCosine)
+  })
+  return(desired_facilities[which.min(distances),])
+}
+
+################################################################################
+# SERVER
+################################################################################
 server = function(input, output, session) {
   # Load the street lights data
   street_lights <- read.csv("Street_Lights.csv", stringsAsFactors = F)
@@ -62,7 +117,9 @@ server = function(input, output, session) {
                            is.na(street_lights$Inspect_Date2),])
     })
   
+  ########################################
   # DAN SERVER DATA SECTION
+  ########################################
   
   # create output for abandoned properties map
   output$ab_map <- renderLeaflet({
@@ -108,7 +165,9 @@ server = function(input, output, session) {
     datatable(ab_property[ab_property@data$Outcome_St %in% c(input$state),]@data)
   )
   
-  ## END DAN SERVER SECTION
+  ########################################
+  # END DAN SERVER DATA SECTION
+  ########################################
   
   output$plot <- renderPlot({
     plot(cars, type=input$plotType)
@@ -138,8 +197,74 @@ server = function(input, output, session) {
                 title = "City Council Representative",
                 pal = colorFactor(palette = 'Set1', domain = districts@data$Council_Me))
     })
+
+  ########################################
+  # GERARD SERVER DATA SECTION
+  ########################################
+  map_size <- 740
+  output$gm_map <- renderPlot(
+    {
+      # constants
+      pt_size <- 8
+      current_color <- "black"
+
+      # station color
+      if (input$gm_facility_type == "POLICE STATION") {
+        station_color <- "blue"
+      } else {
+        station_color = "red"
+      }
+
+      # school / park
+      current_school_park <- gm_combined_data %>%
+        filter(Name == input$gm_selected_school_park)
+
+      # nearest station
+      nearest_station <- gm_find_nearest_facility(current_school_park$Lon,
+                                                  current_school_park$Lat,
+                                                  input$gm_facility_type)
+
+      # route
+      route_df <- route(revgeocode(c(current_school_park$Lon, current_school_park$Lat)),
+                        revgeocode(c(nearest_station$Lon, nearest_station$Lat)),
+                        structure = "route")
+
+      routeQueryCheck()
+
+      # create map
+      google_map <- qmap(c(current_school_park$Lon, current_school_park$Lat), zoom = 12) +
+        # starting point / route
+        geom_point(data = current_school_park,
+                   aes(x = Lon, y = Lat), size = pt_size, color = current_color) +
+        geom_path(data = route_df,
+                  aes(x = lon, y = lat),
+                  colour = current_color, size = 1.5,
+                  alpha = 1, lineend = "round") +
+        # station(s)
+        geom_point(data = gm_combined_data %>% filter(Type == input$gm_facility_type),
+                   aes(x = Lon, y = Lat), size = pt_size, alpha = 0.4, color = station_color) +
+        geom_text(data = nearest_station,
+                  aes(x = Lon, y = Lat, label = Name), color = station_color,
+                  size = 8, vjust = -1) +
+        # title
+        ggtitle(paste(current_school_park$Name, "to", nearest_station$Name)) +
+        # theme
+        theme(plot.title = element_text(size = 24))
+
+      # print map
+      print(google_map)
+    },
+    height = map_size,
+    width = map_size
+  )
+  ########################################
+  # END GERARD SERVER DATA SECTION
+  ########################################
 }
 
+################################################################################
+# UI
+################################################################################
 ui = navbarPage(
   title = "Mayor Pete Dashboard",
   tabPanel("Abandoned Buildings",
@@ -170,8 +295,25 @@ ui = navbarPage(
                )
              )
            ),
-    tabPanel("Gerard",
-            verbatimTextOutput("summary")
+    tabPanel("Nearest Safety Stations",
+             sidebarLayout(
+               sidebarPanel(
+                 radioButtons(
+                   inputId = "gm_facility_type",
+                   label = "Station Type",
+                   choices = c("Police Station"="POLICE STATION", "Fire Station"="FIRE STATION"),
+                   selected = "POLICE STATION"
+                 ),
+                 selectInput(
+                   inputId = "gm_selected_school_park",
+                   label = "Schools and Parks",
+                   choices = sort(gm_schools_parks$Name)
+                 )
+               ),
+               mainPanel(
+                 plotOutput("gm_map")
+               )
+             )
             ),
     tabPanel("Mike",
             DT::dataTableOutput("table")
