@@ -345,7 +345,7 @@ server = function(input, output, session) {
     
     # Create Plot
     ggplot(data = census_dat3)+
-      geom_polygon(aes(x = long, y = lat, fill = tot_pop, group = group), color = "white", popup = "hi") +
+      geom_polygon(aes(x = long, y = lat, fill = tot_pop, group = group), color = "white") +
       coord_fixed(1.3) +
       #geom_point(data = plf_spatial@data, aes(x = Lon, y = Lat, color = Park_Type)) +
       geom_point(data = plf_displayList, aes(x = Lon, y = Lat, color = Park_Type, size=8)) +
