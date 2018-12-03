@@ -414,10 +414,7 @@ ui = navbarPage(
                )
              )
             ),
-    tabPanel("Mike",
-            DT::dataTableOutput("table")
-            ),
-  
+ 
     #########
     # Mike UI 
     #########
