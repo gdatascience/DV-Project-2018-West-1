@@ -9,6 +9,13 @@ library(ggmap)
 library(raster)
 library(DT)
 
+######################################
+# MIKE ADDED THIS TO ENABLE FILE READS
+######################################
+# setwd to current directory where script is running
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+
 ########################################
 ## DAN DATA LOAD AND MANIPULATE
 ########################################
@@ -102,7 +109,7 @@ census_dat2$tot_pop = census_dat2$SE_T001_00
 census_dat2$tot_pop = as.integer(census_dat2$tot_pop)
 #head(census_dat2,1)
 cols <- grep("SE_T", names(census_dat2@data))
-census_dat2@data <- census_dat2@data %>% select(-cols)
+census_dat2@data <- census_dat2@data %>% dplyr::select(-cols)
 #census_dat2@data <- census_dat2@data %>% select(Geo_QName, tot_pop)
 head(census_dat2,1)
 census_dat3 <- fortify(census_dat2, region = 'Geo_QName')
