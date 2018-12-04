@@ -14,7 +14,7 @@ library(geosphere)
 # MIKE ADDED THIS TO ENABLE FILE READS
 ######################################
 # setwd to current directory where script is running
-# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 ########################################
@@ -94,55 +94,55 @@ gm_find_nearest_facility <- function(longitude, latitude, facility_type) {
 ################################
 
 # setwd to current directory where script is running
-# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-# 
-# # load census data
-# census_dat = readOGR(dsn="2010_CensusData", layer = "2010_CensusData", stringsAsFactors = FALSE)
-# 
-# # load parks-locations-features data
-# plf_dat <- read.csv("Parks_Locations_and_Features.csv")
-# 
-# # generate the basemap for South Bend
-# #sb.base.map <- ggmap::get_stamenmap(bbox = c(left = -86.36, bottom = 41.59, right = -86.14,top = 41.76), zoom = 12)
-# 
-# # wrangle census data
-# census_dat2 <- census_dat
-# head(census_dat2,1)
-# census_dat2$tot_pop = census_dat2$SE_T001_00
-# census_dat2$tot_pop = as.integer(census_dat2$tot_pop)
-# #head(census_dat2,1)
-# cols <- grep("SE_T", names(census_dat2@data))
-# census_dat2@data <- census_dat2@data %>% dplyr::select(-cols)
-# #census_dat2@data <- census_dat2@data %>% select(Geo_QName, tot_pop)
-# head(census_dat2,1)
-# census_dat3 <- fortify(census_dat2, region = 'Geo_QName')
-# census_dat3 <- merge(census_dat3, census_dat2@data, by.x = 'id', by.y = 'Geo_QName')
-# 
-# # wrangle park-locations-features data
-# plf_spatial <- SpatialPointsDataFrame(coords = plf_dat[,c("Lon","Lat")], data = plf_dat, 
-#                                       proj4string = CRS("+proj=longlat +datum=WGS84"))
-# head(plf_spatial,1)
-# 
-# #Group By id and summarize long and lat
-# #Create single representation of census location by mean of boundaries
-# census_dat4 <- census_dat3 %>% group_by(NAME) %>% summarise(long=mean(long), lat=mean(lat))
-# tot_pop = NA
-# census_dat4 <- cbind(census_dat4, tot_pop)
-# 
-# #Assign tot_pop to new dataframe with mean of boundaries
-# n = nrow(census_dat4)
-# count=1
-# for(i in 1:n){
-#   flag=0
-#   while(flag == 0){
-#     if(census_dat4$NAME[i] == census_dat3$NAME[count]){
-#       census_dat4$tot_pop[i] = census_dat3$tot_pop[count]
-#       flag=1
-#     }
-#     count=count+1
-#   }
-# }
-# nrow(census_dat4)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# load census data
+census_dat = readOGR(dsn="2010_CensusData", layer = "2010_CensusData", stringsAsFactors = FALSE)
+
+# load parks-locations-features data
+plf_dat <- read.csv("Parks_Locations_and_Features.csv")
+
+# generate the basemap for South Bend
+#sb.base.map <- ggmap::get_stamenmap(bbox = c(left = -86.36, bottom = 41.59, right = -86.14,top = 41.76), zoom = 12)
+
+# wrangle census data
+census_dat2 <- census_dat
+head(census_dat2,1)
+census_dat2$tot_pop = census_dat2$SE_T001_00
+census_dat2$tot_pop = as.integer(census_dat2$tot_pop)
+#head(census_dat2,1)
+cols <- grep("SE_T", names(census_dat2@data))
+census_dat2@data <- census_dat2@data %>% dplyr::select(-cols)
+#census_dat2@data <- census_dat2@data %>% select(Geo_QName, tot_pop)
+head(census_dat2,1)
+census_dat3 <- fortify(census_dat2, region = 'Geo_QName')
+census_dat3 <- merge(census_dat3, census_dat2@data, by.x = 'id', by.y = 'Geo_QName')
+
+# wrangle park-locations-features data
+plf_spatial <- SpatialPointsDataFrame(coords = plf_dat[,c("Lon","Lat")], data = plf_dat, 
+                                      proj4string = CRS("+proj=longlat +datum=WGS84"))
+head(plf_spatial,1)
+
+#Group By id and summarize long and lat
+#Create single representation of census location by mean of boundaries
+census_dat4 <- census_dat3 %>% group_by(NAME) %>% summarise(long=mean(long), lat=mean(lat))
+tot_pop = NA
+census_dat4 <- cbind(census_dat4, tot_pop)
+
+#Assign tot_pop to new dataframe with mean of boundaries
+n = nrow(census_dat4)
+count=1
+for(i in 1:n){
+  flag=0
+  while(flag == 0){
+    if(census_dat4$NAME[i] == census_dat3$NAME[count]){
+      census_dat4$tot_pop[i] = census_dat3$tot_pop[count]
+      flag=1
+    }
+    count=count+1
+  }
+}
+nrow(census_dat4)
 
 ####################################
 ## END MIKE DATA LOAD AND MANIPULATE
@@ -335,26 +335,26 @@ server = function(input, output, session) {
   #################################
   
   # create output for census plot
-  # output$census_plot <- renderPlot({
-  #   
-  #   # Create Color Palette
-  #   plf_pal <- colorFactor(palette = 'Set1', domain = plf_spatial@data$Park_Type)
-  #   
-  #   # Dynamically select park types to display based on selection
-  #   plf_displayList <- as.data.frame(plf_spatial[plf_spatial@data$Park_Type %in% c(input$ptype),])
-  #   
-  #   # create property popup
-  #   #census_dat3$census_popup <- paste("<b>",census_dat3$Geo_QName, census_dat3$tot_pop, sep=" - ")
-  #   
-  #   # Create Plot
-  #   ggplot(data = census_dat3)+
-  #     geom_polygon(aes(x = long, y = lat, fill = tot_pop, group = group), color = "white") +
-  #     coord_fixed(1.3) +
-  #     #geom_point(data = plf_spatial@data, aes(x = Lon, y = Lat, color = Park_Type)) +
-  #     geom_point(data = plf_displayList, aes(x = Lon, y = Lat, color = Park_Type, size=8)) +
-  #     geom_text(data = census_dat4, aes(label=NAME, x = long, y = lat)) +
-  #     theme(legend.position="bottom")
-  # })
+  output$census_plot <- renderPlot({
+    
+    # Create Color Palette
+    plf_pal <- colorFactor(palette = 'Set1', domain = plf_spatial@data$Park_Type)
+    
+    # Dynamically select park types to display based on selection
+    plf_displayList <- as.data.frame(plf_spatial[plf_spatial@data$Park_Type %in% c(input$ptype),])
+    
+    # create property popup
+    #census_dat3$census_popup <- paste("<b>",census_dat3$Geo_QName, census_dat3$tot_pop, sep=" - ")
+    
+    # Create Plot
+    ggplot(data = census_dat3)+
+      geom_polygon(aes(x = long, y = lat, fill = tot_pop, group = group), color = "white") +
+      coord_fixed(1.3) +
+      #geom_point(data = plf_spatial@data, aes(x = Lon, y = Lat, color = Park_Type)) +
+      geom_point(data = plf_displayList, aes(x = Lon, y = Lat, color = Park_Type, size=8)) +
+      geom_text(data = census_dat4, aes(label=NAME, x = long, y = lat)) +
+      theme(legend.position="bottom")
+  })
   
   ###############################
   ## END MIKE SERVER DATA SECTION
@@ -421,24 +421,24 @@ ui = navbarPage(
     #########
     # Mike UI 
     #########
-    tabPanel("Parks to Population Alignment" #,
-             # sidebarLayout(
-             #   sidebarPanel(
-             #     # first set of checkboxes for Park Type
-             #     checkboxGroupInput("ptype", "Park Types:",
-             #                      c("Block Park" = "Block Park",
-             #                        "Cemetery" = "Cemetary",
-             #                        "Community Park" = "Community Park",
-             #                        "Golf Course" = "Golf Course",
-             #                        "Memorial" = "Memorial",
-             #                        "Neighborhood Park" = "Neighborhood Park",
-             #                        "Special" = "Special",
-             #                        "Zoo" = "Zoo"),
-             #                        selected = c("Block Park", "Cemetary", "Community Park", 
-             #                                     "Golf Course", "Memorial", "Neighborhood Park",
-             #                                     "Special", "Zoo"))),
-             #   mainPanel("Parks and Population Alignment", plotOutput(outputId = "census_plot",height = 650, width=650))
-             #   )
+    tabPanel("Parks to Population Alignment",
+             sidebarLayout(
+               sidebarPanel(
+                 # first set of checkboxes for Park Type
+                 checkboxGroupInput("ptype", "Park Types:",
+                                  c("Block Park" = "Block Park",
+                                    "Cemetery" = "Cemetary",
+                                    "Community Park" = "Community Park",
+                                    "Golf Course" = "Golf Course",
+                                    "Memorial" = "Memorial",
+                                    "Neighborhood Park" = "Neighborhood Park",
+                                    "Special" = "Special",
+                                    "Zoo" = "Zoo"),
+                                    selected = c("Block Park", "Cemetary", "Community Park", 
+                                                 "Golf Course", "Memorial", "Neighborhood Park",
+                                                 "Special", "Zoo"))),
+               mainPanel("Parks and Population Alignment", plotOutput(outputId = "census_plot",height = 650, width=650))
+               )
              ),
     #############
     # End Mike UI 
