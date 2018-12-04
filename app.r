@@ -93,6 +93,21 @@ gm_find_nearest_facility <- function(longitude, latitude, facility_type) {
   return(desired_facilities[which.min(distances),])
 }
 
+# Get distances to facilities
+gm_get_distance_to_facility <- function(longitude, latitude, facility_type) {
+  desired_facilities <- gm_combined_data %>%
+    filter(Dataset == "Facilities" & Type == facility_type)
+
+  distances <- apply(desired_facilities, 1, FUN = function(row) {
+    distm(c(as.numeric(row[4]), as.numeric(row[3])),
+          c(longitude, latitude),
+          fun = distCosine)
+  })
+
+  desired_facilities$distance = distances
+  return(desired_facilities)
+}
+
 ################################
 ## MIKE DATA LOAD AND MANIPULATE
 ################################
@@ -274,6 +289,34 @@ server = function(input, output, session) {
   ########################################
   # GERARD SERVER DATA SECTION
   ########################################
+  output$gm_bar <- renderPlot(
+    {
+      # station color
+      if (input$gm_facility_type == "POLICE STATION") {
+        station_color <- "blue"
+      } else {
+        station_color = "darkred"
+      }
+
+      current_school_park <- gm_combined_data %>%
+        filter(Name == input$gm_selected_school_park)
+
+      distances <- gm_get_distance_to_facility(current_school_park$Lon,
+                                               current_school_park$Lat,
+                                               input$gm_facility_type)
+
+      distances %>%
+        arrange(distance) %>%
+        head(n = 5) %>%
+        ggplot(aes(x = reorder(Name, -distance), y = distance)) +
+        geom_bar(stat="identity", fill = station_color) +
+        xlab("") + ylab("Distance (m)") + ggtitle("Distance to Station") + 
+        theme_minimal() +
+        theme(axis.text.x=element_blank()) +
+        coord_flip()
+    }
+  )
+
   map_size <- 740
   output$gm_map <- renderPlot(
     {
@@ -285,7 +328,7 @@ server = function(input, output, session) {
       if (input$gm_facility_type == "POLICE STATION") {
         station_color <- "blue"
       } else {
-        station_color = "red"
+        station_color = "darkred"
       }
 
       # school / park
@@ -422,7 +465,8 @@ ui = navbarPage(
                    inputId = "gm_selected_school_park",
                    label = "Schools and Parks",
                    choices = sort(gm_schools_parks$Name)
-                 )
+                 ),
+                 withSpinner(plotOutput("gm_bar"))
                ),
                mainPanel(
                  withSpinner(plotOutput("gm_map"))
