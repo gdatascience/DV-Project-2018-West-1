@@ -9,17 +9,11 @@ library(ggmap)
 library(raster)
 library(DT)
 library(geosphere)
+library(rgeos)
 library(maptools)
 library(shinycssloaders)
 
-######################################
-# MIKE ADDED THIS TO ENABLE FILE READS
-######################################
 gpclibPermit()
-
-# setwd to current directory where script is running
-# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-
 
 ########################################
 ## DAN DATA LOAD AND MANIPULATE
@@ -126,21 +120,21 @@ plf_dat <- read.csv("Parks_Locations_and_Features.csv")
 
 # wrangle census data
 census_dat2 <- census_dat
-head(census_dat2,1)
+#head(census_dat2,1)
 census_dat2$tot_pop = census_dat2$SE_T001_00
 census_dat2$tot_pop = as.integer(census_dat2$tot_pop)
 #head(census_dat2,1)
 cols <- grep("SE_T", names(census_dat2@data))
 census_dat2@data <- census_dat2@data %>% dplyr::select(-cols)
 #census_dat2@data <- census_dat2@data %>% select(Geo_QName, tot_pop)
-head(census_dat2,1)
+#head(census_dat2,1)
 census_dat3 <- fortify(census_dat2, region = 'Geo_QName')
 census_dat3 <- merge(census_dat3, census_dat2@data, by.x = 'id', by.y = 'Geo_QName')
 
 # wrangle park-locations-features data
 plf_spatial <- SpatialPointsDataFrame(coords = plf_dat[,c("Lon","Lat")], data = plf_dat, 
                                       proj4string = CRS("+proj=longlat +datum=WGS84"))
-head(plf_spatial,1)
+#head(plf_spatial,1)
 
 #Group By id and summarize long and lat
 #Create single representation of census location by mean of boundaries
@@ -163,47 +157,42 @@ for(i in 1:n){
 }
 nrow(census_dat4)
 
-####################################
-## END MIKE DATA LOAD AND MANIPULATE
-####################################
+########################################
+## TONY DATA LOAD AND MANIPULATE
+########################################
+# Load the street lights data
+street_lights <- read.csv("Street_Lights.csv", stringsAsFactors = F)
+street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
+street_lights$color <- if_else(is.na(street_lights$Inspect_Date2), "Inspect ASAP", 
+                               if_else(year(street_lights$Inspect_Date2) > 2007, 
+                                       "Recently Inspected", 
+                                       if_else(year(street_lights$Inspect_Date2) > 2000, 
+                                               "May Need Inspection", "Inspect ASAP")))
+pal1 = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)
+
+# Load the public facilities data
+facilities.points <- read.csv("Public_Facilities.csv")
+facilities.spatial <- SpatialPointsDataFrame(coords = facilities.points[,c("Lon","Lat")], 
+                                             data = facilities.points,
+                                             proj4string = CRS("+proj=longlat +datum=WGS84"))
+facilities.spatial$popup = paste("<b>",facilities.spatial$POPL_NAME,"</b><br>",
+                                 "Type: ",facilities.spatial$POPL_TYPE,"<br>",
+                                 "Phone: ",facilities.spatial$POPL_PHONE,sep ="")
+
+# Load the city council districts data
+districts = readOGR(dsn="City_Council_Districts", 
+                    layer = "City_Council_Districts", 
+                    stringsAsFactors = FALSE)
+districts$popup = paste("<b>", districts@data$Council_Me, "</b><br>",
+                        "Email: <a href=\"mailto:", districts@data$Email, "\">", districts@data$Email, "</a><br>",
+                        "District #: ", districts@data$Dist,sep ="")
+pal2 = colorFactor(palette = 'Set1', domain = districts@data$Council_Me)
+
 
 ################################################################################
 # SERVER
 ################################################################################
 server = function(input, output, session) {
-  # Load the street lights data
-  street_lights <- read.csv("Street_Lights.csv", stringsAsFactors = F)
-  street_lights$Inspect_Date2 <- as.Date(street_lights$Inspect_Date)
-  street_lights$color <- if_else(is.na(street_lights$Inspect_Date2), "Inspect ASAP", 
-                                 if_else(year(street_lights$Inspect_Date2) > 2007, 
-                                         "Recently Inspected", 
-                                         if_else(year(street_lights$Inspect_Date2) > 2000, 
-                                                 "May Need Inspection", "Inspect ASAP")))
-  pal1 = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)
-  
-  # Load the public facilities data
-  facilities.points <- read.csv("Public_Facilities.csv")
-  facilities.spatial <- SpatialPointsDataFrame(coords = facilities.points[,c("Lon","Lat")], 
-                                               data = facilities.points,
-                                               proj4string = CRS("+proj=longlat +datum=WGS84"))
-  facilities.spatial$popup = paste("<b>",facilities.spatial$POPL_NAME,"</b><br>",
-                                   "Type: ",facilities.spatial$POPL_TYPE,"<br>",
-                                   "Phone: ",facilities.spatial$POPL_PHONE,sep ="")
-  
-  # Load the city council districts data
-  districts = readOGR(dsn="City_Council_Districts", 
-                      layer = "City_Council_Districts", 
-                      stringsAsFactors = FALSE)
-  districts$popup = paste("<b>", districts@data$Council_Me, "</b><br>",
-                          "Email: <a href=\"mailto:", districts@data$Email, "\">", districts@data$Email, "</a><br>",
-                          "District #: ", districts@data$Dist,sep ="")
-  pal2 = colorFactor(palette = 'Set1', domain = districts@data$Council_Me)
-  
-  data <- eventReactive(input$dates,{
-    return(street_lights[(street_lights$Inspect_Date2 >= input$dates[1] & 
-                           street_lights$Inspect_Date2 <= input$dates[2]) |
-                           is.na(street_lights$Inspect_Date2),])
-    })
   
   ########################################
   # DAN SERVER DATA SECTION
@@ -254,21 +243,17 @@ server = function(input, output, session) {
   )
   
   ########################################
-  # END DAN SERVER DATA SECTION
+  # TONY SERVER DATA SECTION
   ########################################
   
-  output$plot <- renderPlot({
-    plot(cars, type=input$plotType)
+  # create reactive data object
+  data <- eventReactive(input$dates,{
+    return(street_lights[(street_lights$Inspect_Date2 >= input$dates[1] & 
+                            street_lights$Inspect_Date2 <= input$dates[2]) |
+                           is.na(street_lights$Inspect_Date2),])
   })
   
-  output$summary <- renderPrint({
-    summary(cars)
-  })
-  
-  output$table <- DT::renderDataTable({
-    DT::datatable(cars)
-  })
-  
+  # create leaflet map
   output$map <- renderLeaflet({
     leaflet() %>%
       addTiles() %>%
@@ -499,11 +484,11 @@ ui = navbarPage(
     # End Mike UI 
     #############
   
-    tabPanel("City Lights Map",
+    tabPanel("City Lights",
              sidebarLayout(
                sidebarPanel(
                  dateRangeInput(inputId = "dates", 
-                                label = "Inspection date range", 
+                                label = "Inspection Date Range", 
                                 startview = "year",
                                 start="1970-01-01")
                  ),
