@@ -9,10 +9,14 @@ library(ggmap)
 library(raster)
 library(DT)
 library(geosphere)
+library(maptools)
+library(shinycssloaders)
 
 ######################################
 # MIKE ADDED THIS TO ENABLE FILE READS
 ######################################
+gpclibPermit()
+
 # setwd to current directory where script is running
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
@@ -301,7 +305,7 @@ server = function(input, output, session) {
       routeQueryCheck()
 
       # create map
-      google_map <- qmap(c(current_school_park$Lon, current_school_park$Lat), zoom = 12) +
+      google_map <- qmap(c(current_school_park$Lon, current_school_park$Lat), zoom = 13) +
         # starting point / route
         geom_point(data = current_school_park,
                    aes(x = Lon, y = Lat), size = pt_size, color = current_color) +
@@ -318,7 +322,7 @@ server = function(input, output, session) {
         # title
         ggtitle(paste(current_school_park$Name, "to", nearest_station$Name)) +
         # theme
-        theme(plot.title = element_text(size = 24))
+        theme(plot.title = element_text(size = 25))
 
       # print map
       print(google_map)
@@ -413,7 +417,7 @@ ui = navbarPage(
                  )
                ),
                mainPanel(
-                 plotOutput("gm_map")
+                 withSpinner(plotOutput("gm_map"))
                )
              )
             ),
