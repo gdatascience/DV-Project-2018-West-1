@@ -312,7 +312,6 @@ server = function(input, output, session) {
         geom_bar(stat="identity", fill = station_color) +
         xlab("") + ylab("Distance (m)") + ggtitle("Distance to Station") + 
         theme_minimal() +
-        theme(axis.text.x=element_blank()) +
         coord_flip()
     }
   )
