@@ -18,7 +18,7 @@ library(shinycssloaders)
 gpclibPermit()
 
 # setwd to current directory where script is running
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 ########################################
@@ -98,7 +98,7 @@ gm_find_nearest_facility <- function(longitude, latitude, facility_type) {
 ################################
 
 # setwd to current directory where script is running
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # load census data
 census_dat = readOGR(dsn="2010_CensusData", layer = "2010_CensusData", stringsAsFactors = FALSE)
@@ -351,13 +351,21 @@ server = function(input, output, session) {
     #census_dat3$census_popup <- paste("<b>",census_dat3$Geo_QName, census_dat3$tot_pop, sep=" - ")
     
     # Create Plot
-    ggplot(data = census_dat3)+
+    m_plot = ggplot(data = census_dat3)+
       geom_polygon(aes(x = long, y = lat, fill = tot_pop, group = group), color = "white") +
       coord_fixed(1.3) +
       #geom_point(data = plf_spatial@data, aes(x = Lon, y = Lat, color = Park_Type)) +
-      geom_point(data = plf_displayList, aes(x = Lon, y = Lat, color = Park_Type, size=8)) +
-      geom_text(data = census_dat4, aes(label=NAME, x = long, y = lat)) +
+      geom_text(data = census_dat4, aes(label=NAME, x = long, y = lat))
+    
+    if(nrow(plf_displayList) > 0){
+      m_plot = m_plot +
+        geom_point(data = plf_displayList, aes(x = Lon, y = Lat, color = Park_Type, size=8))
+    }
+    
+    m_plot = m_plot +
       theme(legend.position="bottom")
+    
+    return(m_plot)
   })
   
   ###############################
@@ -372,7 +380,7 @@ server = function(input, output, session) {
 # UI
 ################################################################################
 ui = navbarPage(
-  title = "Mayor Pete Dashboard",
+  title = "South Bend Dashboard",
   tabPanel("Abandoned Buildings",
            sidebarLayout(
              sidebarPanel(
