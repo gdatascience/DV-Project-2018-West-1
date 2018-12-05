@@ -442,8 +442,8 @@ ui = navbarPage(
                  radioButtons(
                    inputId = "gm_facility_type",
                    label = "Station Type",
-                   choices = c("Police Station"="POLICE STATION", "Fire Station"="FIRE STATION"),
-                   selected = "POLICE STATION"
+                   choices = c("Fire Station"="FIRE STATION", "Police Station"="POLICE STATION"),
+                   selected = "FIRE STATION"
                  ),
                  selectInput(
                    inputId = "gm_selected_school_park",
