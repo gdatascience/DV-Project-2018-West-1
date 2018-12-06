@@ -251,24 +251,32 @@ server = function(input, output, session) {
     return(street_lights[(street_lights$Inspect_Date2 >= input$dates[1] & 
                             street_lights$Inspect_Date2 <= input$dates[2]) |
                            is.na(street_lights$Inspect_Date2),])
-  })
+    })
   
   # create leaflet map
   output$map <- renderLeaflet({
-    leaflet() %>%
+    lights_map = leaflet() %>%
       addTiles() %>%
+      setView(mean(street_lights$Lon), mean(street_lights$Lat), zoom = 12) %>%
       addPolygons(data = districts, 
                   color = ~pal2(Council_Me), popup = ~popup) %>%
       addCircleMarkers(data = data(), lng =  ~Lon, lat = ~Lat, 
                        color = ~pal1(color),
-                       stroke = 0, fillOpacity = 1, radius = 1) %>%
-      addMarkers(data = facilities.spatial, popup = ~popup) %>%
+                       stroke = 0, fillOpacity = 1, radius = 1.5) %>%
       addLegend(values = data()$color, position = "topright", 
                 title = "Light Inspection Status",
                 pal = colorFactor(palette = c("red", "yellow", "green"), domain = street_lights$color)) %>%
       addLegend(values = districts@data$Council_Me, position = "bottomleft",
                 title = "City Council Representative",
                 pal = colorFactor(palette = 'Set1', domain = districts@data$Council_Me))
+    
+    # If statement to determine if the display map should have public facilities or not
+    if(input$show_facilities == TRUE){
+      lights_map = lights_map %>%
+        addMarkers(data = facilities.spatial, popup = ~popup)
+    }
+    
+    return(lights_map)
     })
 
   ########################################
@@ -490,7 +498,10 @@ ui = navbarPage(
                  dateRangeInput(inputId = "dates", 
                                 label = "Inspection Date Range", 
                                 startview = "year",
-                                start="1970-01-01")
+                                start="1970-01-01"),
+                 
+                 # Individual checkbox for inclusion of public facilities
+                 checkboxInput("show_facilities", "Show Public Facilities?")
                  ),
                mainPanel(
                  "City Lights by Inspection Status", 
