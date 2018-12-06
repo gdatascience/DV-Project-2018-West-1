@@ -107,7 +107,7 @@ gm_get_distance_to_facility <- function(longitude, latitude, facility_type) {
 ################################
 
 # setwd to current directory where script is running
-# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # load census data
 census_dat = readOGR(dsn="2010_CensusData", layer = "2010_CensusData", stringsAsFactors = FALSE)
@@ -120,21 +120,26 @@ plf_dat <- read.csv("Parks_Locations_and_Features.csv")
 
 # wrangle census data
 census_dat2 <- census_dat
-#head(census_dat2,1)
+head(census_dat2,1)
 census_dat2$tot_pop = census_dat2$SE_T001_00
 census_dat2$tot_pop = as.integer(census_dat2$tot_pop)
-#head(census_dat2,1)
 cols <- grep("SE_T", names(census_dat2@data))
-census_dat2@data <- census_dat2@data %>% dplyr::select(-cols)
+census_dat2$pdensity <- round(census_dat2$SE_T002_01,0)
+census_dat2@data <- census_dat2@data %>% select(-cols)
+
+head(census_dat2,1)
+
 #census_dat2@data <- census_dat2@data %>% select(Geo_QName, tot_pop)
-#head(census_dat2,1)
+
 census_dat3 <- fortify(census_dat2, region = 'Geo_QName')
 census_dat3 <- merge(census_dat3, census_dat2@data, by.x = 'id', by.y = 'Geo_QName')
+
+head(census_dat3,1)
 
 # wrangle park-locations-features data
 plf_spatial <- SpatialPointsDataFrame(coords = plf_dat[,c("Lon","Lat")], data = plf_dat, 
                                       proj4string = CRS("+proj=longlat +datum=WGS84"))
-#head(plf_spatial,1)
+head(plf_spatial,1)
 
 #Group By id and summarize long and lat
 #Create single representation of census location by mean of boundaries
@@ -150,12 +155,14 @@ for(i in 1:n){
   while(flag == 0){
     if(census_dat4$NAME[i] == census_dat3$NAME[count]){
       census_dat4$tot_pop[i] = census_dat3$tot_pop[count]
+      census_dat4$NAMELSAD[i] = census_dat3$NAMELSAD[count]
+      census_dat4$pdensity[i] = census_dat3$pdensity[count]
       flag=1
     }
     count=count+1
   }
 }
-nrow(census_dat4)
+head(census_dat4,1)
 
 ########################################
 ## TONY DATA LOAD AND MANIPULATE
@@ -373,35 +380,120 @@ server = function(input, output, session) {
   ## MIKE SERVER DATA SECTION
   #################################
   
-  # create output for census plot
-  output$census_plot <- renderPlot({
+  # Adjust user input
+  output$maps.output <-renderUI(
     
-    # Create Color Palette
+  if ( ("Population" %in% input$maps) & ("Population Density" %in% input$maps) ){
+    print("Invalid Combination")
+    return( updateCheckboxGroupInput(session, "maps", selected = "Geographic"))
+  })
+  
+  # create output 
+  output$census_plot <- renderLeaflet({
+  
+    # Create Color Palettes
+    custcol1 <- brewer.pal(8, "Blues")[1:8]
+    custcol2 <- brewer.pal(8, "Greens")[1:8]
+    pop_pal <- colorNumeric(palette = custcol1, domain = census_dat2@data$tot_pop)
+    den_pal <- colorNumeric(palette = custcol2, domain = census_dat2@data$pdensity)
     plf_pal <- colorFactor(palette = 'Set1', domain = plf_spatial@data$Park_Type)
+    
+
+    # create popups
+    census_dat2$pop_popup <- paste("<b>", census_dat2@data$NAMELSAD, "<br>", 
+                                 "Population = ", census_dat2@data$tot_pop)
+    census_dat2$den_popup <- paste("<b>", census_dat2@data$NAMELSAD, "<br>", 
+                                 "Population Density (per sq mi) = ", census_dat2@data$pdensity)
+    plf_spatial$plf_popup <- paste("<b>", plf_spatial$Park_Name)
     
     # Dynamically select park types to display based on selection
     plf_displayList <- as.data.frame(plf_spatial[plf_spatial@data$Park_Type %in% c(input$ptype),])
     
-    # create property popup
-    #census_dat3$census_popup <- paste("<b>",census_dat3$Geo_QName, census_dat3$tot_pop, sep=" - ")
-    
-    # Create Plot
-    m_plot = ggplot(data = census_dat3)+
-      geom_polygon(aes(x = long, y = lat, fill = tot_pop, group = group), color = "white") +
-      coord_fixed(1.3) +
-      #geom_point(data = plf_spatial@data, aes(x = Lon, y = Lat, color = Park_Type)) +
-      geom_text(data = census_dat4, aes(label=NAME, x = long, y = lat))
-    
-    if(nrow(plf_displayList) > 0){
-      m_plot = m_plot +
-        geom_point(data = plf_displayList, aes(x = Lon, y = Lat, color = Park_Type, size=8))
-    }
-    
-    m_plot = m_plot +
-      theme(legend.position="bottom")
-    
-    return(m_plot)
-  })
+    # Dynamic Display Geographic and Population
+     if( ("Geographic" %in% input$maps) & ("Population" %in% input$maps) & !("Population Density" %in% input$maps) ){
+      leaflet()  %>%
+        addTiles() %>%
+        addPolygons(data = census_dat2, fill = census_dat2@data$tot_pop, popup = ~pop_popup, stroke = TRUE, 
+                  fillColor = ~pop_pal(tot_pop), color = "white", fillOpacity = .60) %>%
+        addLegend(values = census_dat2@data$tot_pop, position = "bottomleft", 
+                title = "Total Population", pal = pop_pal) %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                       color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                       radius = 6, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)
+      
+    # Dynamic Display Geographic and Density    
+    }else if( ("Geographic" %in% input$maps) & !("Population" %in% input$maps) & ("Population Density" %in% input$maps) ){ 
+      leaflet()  %>%       
+        addTiles() %>%
+        addPolygons(data = census_dat2, fill = census_dat2@data$pdensity, popup = ~den_popup, stroke = TRUE, 
+                  fillColor = ~den_pal(pdensity), color = "white", fillOpacity = .60) %>%
+        addLegend(values = census_dat2@data$pdensity, position = "bottomleft", 
+                title = "Population Density per SQ MI", pal = den_pal) %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                       color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                       radius = 6, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)
+      
+    # Dynamic Display Population
+      }else if( !("Geographic" %in% input$maps) & ("Population" %in% input$maps) & !("Population Density" %in% input$maps) ){
+      leaflet()  %>%
+        addPolygons(data = census_dat2, fill = census_dat2@data$tot_pop, popup = ~pop_popup, stroke = TRUE, 
+                  fillColor = ~pop_pal(tot_pop), color = "white", fillOpacity = 1) %>%
+        addLegend(values = census_dat2@data$tot_pop, position = "bottomleft", 
+                title = "Census Population", pal = pop_pal) %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                       color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                       radius = 6, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)
+
+    # Dynamic Display Density    
+    }else if( !("Geographic" %in% input$maps) & !("Population" %in% input$maps) & ("Population Density" %in% input$maps) ){ 
+      leaflet()  %>%       
+        addPolygons(data = census_dat2, fill = census_dat2@data$pdensity, popup = ~den_popup, stroke = TRUE, 
+                  fillColor = ~den_pal(pdensity), color = "white", fillOpacity = 1) %>%
+        addLegend(values = census_dat2@data$pdensity, position = "bottomleft", 
+                title = "Population Density per SQ MI", pal = den_pal) %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                       color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                       radius = 6, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)        
+
+    # Dynamic Display Geographic
+      }else if( ("Geographic" %in% input$maps) & !("Population" %in% input$maps) & !("Population Density" %in% input$maps) ){ 
+      leaflet()  %>%       
+        addTiles() %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                       color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                       radius = 6, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)
+        
+    # Dynamic Display Geographic
+      }else if( ("Geographic" %in% input$maps) & ("Population" %in% input$maps) & ("Population Density" %in% input$maps) ){ 
+      leaflet()  %>%       
+        addTiles() %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                       color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                       radius = 6, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)
+
+    # Default Parks Only        
+    }else{
+      leaflet()  %>%
+        addCircleMarkers(data = plf_displayList, lng =  ~Lon, lat = ~Lat,
+                     color = ~plf_pal(Park_Type), stroke = 0, fillOpacity = .85, 
+                     radius = 5, popup = ~plf_popup) %>%
+        addLegend(values = plf_spatial@data$Park_Type, position = "bottomright", 
+                title = "Park Type", pal = plf_pal)
+     }
+})
+
   
   ###############################
   ## END MIKE SERVER DATA SECTION
@@ -469,11 +561,12 @@ ui = navbarPage(
     #########
     # Mike UI 
     #########
+
     tabPanel("Parks to Population Alignment",
-             sidebarLayout(
-               sidebarPanel(
-                 # first set of checkboxes for Park Type
-                 checkboxGroupInput("ptype", "Park Types:",
+           sidebarLayout(
+             sidebarPanel(
+               # first set of checkboxes for Park Type
+               checkboxGroupInput("ptype", "Park Types:",
                                   c("Block Park" = "Block Park",
                                     "Cemetery" = "Cemetary",
                                     "Community Park" = "Community Park",
@@ -482,12 +575,20 @@ ui = navbarPage(
                                     "Neighborhood Park" = "Neighborhood Park",
                                     "Special" = "Special",
                                     "Zoo" = "Zoo"),
-                                    selected = c("Block Park", "Cemetary", "Community Park", 
-                                                 "Golf Course", "Memorial", "Neighborhood Park",
-                                                 "Special", "Zoo"))),
-               mainPanel("Parks and Population Alignment", plotOutput(outputId = "census_plot",height = 650, width=650))
-               )
-             ),
+                                  selected = c("Block Park", "Cemetary", "Community Park", "Golf Course", "Memorial", "Neighborhood Park", "Special", "Zoo")),
+             
+               # Individual checkbox for inclusion of area map
+               checkboxGroupInput("maps", "Maps:",
+                                  c("Geographic" = "Geographic",
+                                    "Population" = "Population",
+                                    "Population Density" = "Population Density"),
+                                  selected = c("Geographic")),
+               uiOutput(outputId="maps.output")),
+             
+               mainPanel(leafletOutput("census_plot",height = 650, width=650))
+             )
+          ),  
+  
     #############
     # End Mike UI 
     #############
