@@ -12,6 +12,7 @@ library(geosphere)
 library(rgeos)
 library(maptools)
 library(shinycssloaders)
+library(RColorBrewer)
 
 gpclibPermit()
 
@@ -107,7 +108,7 @@ gm_get_distance_to_facility <- function(longitude, latitude, facility_type) {
 ################################
 
 # setwd to current directory where script is running
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # load census data
 census_dat = readOGR(dsn="2010_CensusData", layer = "2010_CensusData", stringsAsFactors = FALSE)
@@ -120,26 +121,26 @@ plf_dat <- read.csv("Parks_Locations_and_Features.csv")
 
 # wrangle census data
 census_dat2 <- census_dat
-head(census_dat2,1)
+#head(census_dat2,1)
 census_dat2$tot_pop = census_dat2$SE_T001_00
 census_dat2$tot_pop = as.integer(census_dat2$tot_pop)
 cols <- grep("SE_T", names(census_dat2@data))
 census_dat2$pdensity <- round(census_dat2$SE_T002_01,0)
-census_dat2@data <- census_dat2@data %>% select(-cols)
+census_dat2@data <- census_dat2@data %>% dplyr::select(-cols)
 
-head(census_dat2,1)
+#head(census_dat2,1)
 
 #census_dat2@data <- census_dat2@data %>% select(Geo_QName, tot_pop)
 
 census_dat3 <- fortify(census_dat2, region = 'Geo_QName')
 census_dat3 <- merge(census_dat3, census_dat2@data, by.x = 'id', by.y = 'Geo_QName')
 
-head(census_dat3,1)
+#head(census_dat3,1)
 
 # wrangle park-locations-features data
 plf_spatial <- SpatialPointsDataFrame(coords = plf_dat[,c("Lon","Lat")], data = plf_dat, 
                                       proj4string = CRS("+proj=longlat +datum=WGS84"))
-head(plf_spatial,1)
+#head(plf_spatial,1)
 
 #Group By id and summarize long and lat
 #Create single representation of census location by mean of boundaries
@@ -162,7 +163,7 @@ for(i in 1:n){
     count=count+1
   }
 }
-head(census_dat4,1)
+#head(census_dat4,1)
 
 ########################################
 ## TONY DATA LOAD AND MANIPULATE
